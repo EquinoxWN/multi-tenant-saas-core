@@ -65,7 +65,7 @@ Language: **TypeScript** (NestJS 12, ESM) on **PostgreSQL** with row-level secur
 
 ## Run it
 
-Needs Node.js 22.12 or newer. No Docker: the tests start a real PostgreSQL from `node_modules` (`embedded-postgres`), with its data in the git-ignored `.tmp/`.
+Needs Node.js 24 or newer. No Docker: the tests start a real PostgreSQL from `node_modules` (`embedded-postgres`), with its data in the git-ignored `.tmp/`.
 
 ```bash
 make setup   # npm ci
