@@ -7,6 +7,12 @@
 
 Part of my **Backend and API** list · TypeScript · core project
 
+## Proof it works
+
+29 tests against a real PostgreSQL: one tenant can never read, insert, move, update or delete another tenant's rows, even through a deliberately buggy query or a reused pooled connection; the HTTP API answers 404 for another tenant's project ids; forged, expired, `alg:none` and HS512 tokens are refused. npm audit finds no vulnerabilities:
+
+![npm test against embedded PostgreSQL and npm audit](docs/proof/tests.jpg)
+
 ## Architecture
 
 **Request flow:**
