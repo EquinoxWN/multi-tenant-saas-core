@@ -41,7 +41,7 @@ sequenceDiagram
 
 ## How it works
 
-_Steps 1 and 2 are built and tested (M1); the rest is on the [roadmap](#roadmap)._
+_Steps 1, 2 and 6 are built and tested; the rest is on the [roadmap](#roadmap)._
 
 1. Each request resolves the tenant from its token and sets it for the current transaction only (`set_config('app.tenant_id', ..., true)`).
 2. Row-level security policies on every table filter by that setting, so even a buggy query cannot read another tenant's rows.
@@ -52,11 +52,11 @@ _Steps 1 and 2 are built and tested (M1); the rest is on the [roadmap](#roadmap)
 
 ## Tech stack
 
-| Area | Tools |
-|---|---|
-| Core | TypeScript (NestJS), PostgreSQL row-level security |
-| Fairness | per-tenant quotas and rate limits in Valkey, usage metering |
-| Test | cross-tenant attack suite, pgTAP policy tests |
+| Area | In M1 | Planned |
+|---|---|---|
+| Core | TypeScript, NestJS, PostgreSQL row-level security, HS256 JWT | - |
+| Fairness | - | Per-tenant quotas and rate limits in Valkey, usage metering |
+| Test | Cross-tenant attack tests against a real PostgreSQL (embedded-postgres) | pgTAP policy tests, CI check that every table has a policy |
 
 Language: **TypeScript** (NestJS 12, ESM) on **PostgreSQL** with row-level security.
 
@@ -147,7 +147,7 @@ mindmap
 
 **M3** (≈25 h)
 - [ ] Per-tenant quotas and fair queuing stop one tenant starving others; usage is metered for billing.
-- [ ] An attack suite tries IDOR, forged tenant IDs and raw SQL to cross tenants, and every attempt must fail.
+- [x] An attack suite tries IDOR, forged tenant IDs and raw SQL to cross tenants, and every attempt must fail.
 - [ ] Publish the proof below with real numbers
 
 ## Proof
@@ -163,7 +163,7 @@ What this repo must show before it counts as done:
 ## Why it matters
 
 - **Interview angle:** 'Design a multi-tenant SaaS with strong isolation'.
-- **Upstream I'm contributing to:** NestJS or PostgreSQL row-security docs and tests.
+- **Upstream I'd like to contribute to:** NestJS or PostgreSQL row-security docs and tests.
 
 ## Design docs
 
