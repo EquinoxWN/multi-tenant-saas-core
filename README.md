@@ -50,6 +50,12 @@ _Steps 1, 2 and 6 are built and tested; the rest is on the [roadmap](#roadmap)._
 5. Per-tenant quotas and fair queuing stop one tenant starving others; usage is metered for billing.
 6. An attack suite tries IDOR, forged tenant IDs and raw SQL to cross tenants, and every attempt must fail.
 
+## Who it helps
+
+- **Who:** Teams building multi-tenant SaaS on PostgreSQL.
+- **The problem:** One missing `WHERE tenant_id = ...` can show a customer another customer's data.
+- **How to use it:** Set the tenant per transaction and let row-level security filter every table, then run the attack suite, where IDOR, forged tenant IDs and raw SQL attempts must all fail.
+
 ## Tech stack
 
 | Area | In M1 | Planned |
