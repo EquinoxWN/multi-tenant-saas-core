@@ -43,14 +43,29 @@ export class ProjectsService {
     });
   }
 
-  /** Create a project owned by the tenant. */
-  create(tenantId: string, name: string): Promise<Project> {
+  /** Create a project owned by the tenant; a repeated idempotency key returns the first project. */
+  create(tenantId: string, name: string, idempotencyKey?: string): Promise<Project> {
     return this.db.withTenant(tenantId, async (q) => {
-      const res = await q.query<ProjectRow>(
-        "INSERT INTO projects (tenant_id, name) VALUES ($1, $2) RETURNING id, name, created_at",
-        [tenantId, name],
+      if (idempotencyKey === undefined) {
+        const res = await q.query<ProjectRow>(
+          "INSERT INTO projects (tenant_id, name) VALUES ($1, $2) RETURNING id, name, created_at",
+          [tenantId, name],
+        );
+        return toProject(res.rows[0]!);
+      }
+      const inserted = await q.query<ProjectRow>(
+        `INSERT INTO projects (tenant_id, name, idempotency_key) VALUES ($1, $2, $3)
+         ON CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
+         RETURNING id, name, created_at`,
+        [tenantId, name, idempotencyKey],
       );
-      return toProject(res.rows[0]!);
+      if (inserted.rows[0]) return toProject(inserted.rows[0]);
+      // RLS limits this to the caller's tenant, so another tenant's key is never visible.
+      const existing = await q.query<ProjectRow>(
+        "SELECT id, name, created_at FROM projects WHERE idempotency_key = $1",
+        [idempotencyKey],
+      );
+      return toProject(existing.rows[0]!);
     });
   }
 }

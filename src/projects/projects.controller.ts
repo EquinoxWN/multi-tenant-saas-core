@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   NotFoundException,
   Param,
@@ -21,6 +22,15 @@ function parseName(body: unknown): string {
     throw new BadRequestException("name must be a string of 1 to 100 characters");
   }
   return name.trim();
+}
+
+/** Validates the optional Idempotency-Key header: 1 to 200 visible ASCII characters. */
+function parseIdempotencyKey(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (!/^[!-~]{1,200}$/.test(value)) {
+    throw new BadRequestException("Idempotency-Key must be 1 to 200 visible ASCII characters");
+  }
+  return value;
 }
 
 /** /projects: every route requires a valid tenant token. */
@@ -43,10 +53,14 @@ export class ProjectsController {
     return project;
   }
 
-  /** Create a project for the caller's tenant. */
+  /** Create a project for the caller's tenant; retries with the same Idempotency-Key create nothing new. */
   @Post()
   @HttpCode(201)
-  create(@CurrentTenant() tenant: TenantClaims, @Body() body: unknown): Promise<Project> {
-    return this.projects.create(tenant.tenantId, parseName(body));
+  create(
+    @CurrentTenant() tenant: TenantClaims,
+    @Body() body: unknown,
+    @Headers("idempotency-key") idempotencyKey?: string,
+  ): Promise<Project> {
+    return this.projects.create(tenant.tenantId, parseName(body), parseIdempotencyKey(idempotencyKey));
   }
 }

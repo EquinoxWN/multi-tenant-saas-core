@@ -6,8 +6,22 @@ import pg from "pg";
 /** Repository-root migrations folder, resolved from dist/src/db/. */
 export const MIGRATIONS_DIR = fileURLToPath(new URL("../../../migrations/", import.meta.url));
 
+/** Arbitrary key of the session advisory lock that serialises concurrent migrators. */
+const MIGRATION_LOCK = 4_172_903_311;
+
 /** Apply every not-yet-applied .sql file in name order, each in its own transaction. */
 export async function migrate(client: pg.ClientBase, dir: string = MIGRATIONS_DIR): Promise<string[]> {
+  // Two deploys starting at once must not both apply the same file.
+  await client.query("SELECT pg_advisory_lock($1)", [MIGRATION_LOCK]);
+  try {
+    return await applyPending(client, dir);
+  } finally {
+    await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK]);
+  }
+}
+
+/** Apply the files not yet recorded in schema_migrations; the caller holds the lock. */
+async function applyPending(client: pg.ClientBase, dir: string): Promise<string[]> {
   await client.query(
     "CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",
   );
@@ -35,7 +49,7 @@ export async function migrate(client: pg.ClientBase, dir: string = MIGRATIONS_DI
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const url = process.env.DATABASE_ADMIN_URL;
   if (!url) throw new Error("DATABASE_ADMIN_URL is required (a role that owns the schema)");
-  const client = new pg.Client({ connectionString: url });
+  const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 10_000 });
   await client.connect();
   try {
     const applied = await migrate(client);
