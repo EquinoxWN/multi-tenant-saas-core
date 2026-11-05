@@ -71,6 +71,12 @@ describe("HTTP API", () => {
     assert.equal((await call("/projects")).status, 401);
   });
 
+  test("a valid token under another auth scheme is 401", async () => {
+    // "Digest " has the same length as "Bearer ", so only a real scheme check can reject it.
+    const res = await fetch(`${base}/projects`, { headers: { Authorization: `Digest ${tokenFor(db.tenantA)}` } });
+    assert.equal(res.status, 401);
+  });
+
   test("token forged with another secret is 401", async () => {
     const forged = signTenantToken({ tenantId: db.tenantB, userId: "attacker" }, randomBytes(32).toString("hex"));
     assert.equal((await call("/projects", forged)).status, 401);
@@ -84,6 +90,45 @@ describe("HTTP API", () => {
     assert.equal(res.status, 201);
     const listB = (await (await call("/projects", tokenFor(db.tenantB))).json()) as { name: string }[];
     assert.ok(!listB.some((p) => p.name === "sneaky"));
+  });
+
+  test("a retried create with the same Idempotency-Key makes one project", async () => {
+    const init = { method: "POST", body: JSON.stringify({ name: "A-retry" }), headers: { "Idempotency-Key": "req-123" } };
+    const first = await call("/projects", tokenFor(db.tenantA), init);
+    const again = await call("/projects", tokenFor(db.tenantA), init);
+    assert.equal(first.status, 201);
+    assert.equal(again.status, 201);
+    assert.equal(((await again.json()) as { id: string }).id, ((await first.json()) as { id: string }).id);
+    const { rows } = await db.admin.query("SELECT count(*)::int AS n FROM projects WHERE name = 'A-retry'");
+    assert.equal(rows[0].n, 1);
+  });
+
+  test("the same Idempotency-Key in another tenant is a separate project", async () => {
+    const init = { method: "POST", body: JSON.stringify({ name: "shared-key" }), headers: { "Idempotency-Key": "same" } };
+    const a = (await (await call("/projects", tokenFor(db.tenantA), init)).json()) as { id: string };
+    const b = (await (await call("/projects", tokenFor(db.tenantB), init)).json()) as { id: string };
+    assert.notEqual(a.id, b.id);
+    assert.equal((await call(`/projects/${a.id}`, tokenFor(db.tenantB))).status, 404);
+  });
+
+  test("creates without an Idempotency-Key are not deduplicated", async () => {
+    for (let i = 0; i < 2; i++) {
+      const res = await call("/projects", tokenFor(db.tenantA), { method: "POST", body: JSON.stringify({ name: "A-twice" }) });
+      assert.equal(res.status, 201);
+    }
+    const { rows } = await db.admin.query("SELECT count(*)::int AS n FROM projects WHERE name = 'A-twice'");
+    assert.equal(rows[0].n, 2);
+  });
+
+  test("an invalid Idempotency-Key is rejected with 400", async () => {
+    for (const key of ["has space", "x".repeat(201)]) {
+      const res = await call("/projects", tokenFor(db.tenantA), {
+        method: "POST",
+        body: JSON.stringify({ name: "A-badkey" }),
+        headers: { "Idempotency-Key": key },
+      });
+      assert.equal(res.status, 400, key);
+    }
   });
 
   test("invalid names are rejected with 400", async () => {

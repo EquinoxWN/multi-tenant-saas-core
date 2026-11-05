@@ -45,6 +45,9 @@ export async function startTestDb(): Promise<TestDb> {
       password,
       port,
       persistent: false,
+      // PostgreSQL 18 I/O worker children can outlive the server on Windows and keep its pipes
+      // open, so stop() never resolves; synchronous I/O starts no such workers.
+      postgresFlags: ["-c", "io_method=sync"],
       onLog: () => undefined,
     });
     await server.initialise();
@@ -53,7 +56,9 @@ export async function startTestDb(): Promise<TestDb> {
     adminConfig = { host: "127.0.0.1", port, user: "postgres", password, database: "postgres" };
   }
 
-  const admin = new pg.Pool({ ...adminConfig, max: 2 });
+  // Timeouts turn a dead test server into a failing test instead of a hung run.
+  const timeouts = { connectionTimeoutMillis: 10_000, query_timeout: 30_000 };
+  const admin = new pg.Pool({ ...adminConfig, ...timeouts, max: 2 });
   const client = await admin.connect();
   try {
     await migrate(client);
@@ -80,6 +85,7 @@ export async function startTestDb(): Promise<TestDb> {
     database: adminConfig.database ?? url.pathname.slice(1),
     user: "app_user",
     password,
+    ...timeouts,
     max: 1, // one connection makes "context leaks between requests" observable
   });
 

@@ -55,3 +55,15 @@ test("tampered payload is rejected", () => {
   const forged = Buffer.from(JSON.stringify({ tid: randomUUID(), sub: "u" })).toString("base64url");
   assert.throws(() => verifyTenantToken(`${h}.${forged}.${s}`, secret), InvalidTokenError);
 });
+
+test("a tenant id with text around a UUID is rejected", () => {
+  for (const tid of [`x${tenantId}`, `${tenantId}x`]) {
+    const token = jwt.sign({ tid }, secret, { algorithm: "HS256", subject: "u" });
+    assert.throws(() => verifyTenantToken(token, secret), InvalidTokenError, tid);
+  }
+});
+
+test("an upper-case tenant id is normalised, so RLS compares one spelling", () => {
+  const token = signTenantToken({ tenantId: tenantId.toUpperCase(), userId: "u" }, secret);
+  assert.equal(verifyTenantToken(token, secret).tenantId, tenantId);
+});

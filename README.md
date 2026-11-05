@@ -72,7 +72,7 @@ Language: **TypeScript** (NestJS 12, ESM) on **PostgreSQL** with row-level secur
 | `src/auth/tenant-token.ts` | HS256-only JWT verification; tenant id must be a UUID |
 | `src/auth/tenant.guard.ts` | Rejects requests without a valid token; injects the caller's tenant |
 | `src/db/database.ts` | `withTenant()`: transaction-local `set_config('app.tenant_id', ...)` |
-| `src/projects/` | `GET /projects`, `GET /projects/:id`, `POST /projects` |
+| `src/projects/` | `GET /projects`, `GET /projects/:id`, `POST /projects` (optional `Idempotency-Key` header makes retries create one project) |
 | `test/` | Token, row-level-security and HTTP tests against a real PostgreSQL |
 
 ## Run it
@@ -82,7 +82,7 @@ Needs Node.js 24 or newer. No Docker: the tests start a real PostgreSQL from `no
 ```bash
 make setup   # npm ci
 make lint    # TypeScript strict type check
-make test    # 29 tests: tokens, row-level security, HTTP API
+make test    # 45 tests: tokens, row-level security, HTTP API, migrations, config
 ```
 
 Run against your own PostgreSQL instead:
@@ -95,6 +95,7 @@ make migrate
 #   ALTER ROLE app_user LOGIN PASSWORD '...';
 export DATABASE_URL=postgres://app_user:...@localhost:5432/app
 export JWT_SECRET=$(openssl rand -hex 32)
+# optional: PORT (default 3000)
 npm run build && npm start
 ```
 
@@ -111,33 +112,44 @@ Latest local run against PostgreSQL 18.4 (full detail in [docs/results/m1.md](do
 
 | Check | Result |
 |---|---|
-| Test suite | 29 passed, 0 failed |
+| Test suite | 45 passed, 0 failed |
 | App role | `NOSUPERUSER`, `NOBYPASSRLS` |
 | TypeScript | `strict`, `noUncheckedIndexedAccess`, no errors |
 
 Known limit (ADR 0002): RLS stops buggy queries, not SQL injection, so every query is parameterised.
 
+The 10 quality rules (timeouts, retry-safe writes, races, mutation testing and more) are checked in [docs/quality/2026-11-01.md](docs/quality/2026-11-01.md).
+
 ### Test map
 
 ```mermaid
 mindmap
-  root((29 tests pass))
+  root((45 tests pass))
     Row-level security 12
       each tenant sees only its rows
       no context means no rows
       cannot insert or move rows across tenants
       cannot switch row security off
       no leak across pooled connections
-    HTTP API 8
+    HTTP API 13
       IDOR returns 404
       body cannot choose the tenant
       missing or forged token returns 401
       invalid input returns 400
-    Tokens 9
+      retry with Idempotency-Key makes one project
+      other auth schemes return 401
+    Tokens 11
       alg none rejected
       HS512 rejected
       expired or tampered rejected
       non UUID tenant rejected
+      tenant id normalised to lower case
+    Database and migrations 5
+      broken connection destroyed, not reused
+      pool timeouts set
+      concurrent migrators apply a file once
+    Config 4
+      missing URL, short secret, bad port refused
 ```
 
 ## Roadmap
