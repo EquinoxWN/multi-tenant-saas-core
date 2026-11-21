@@ -82,7 +82,7 @@ Needs Node.js 24 or newer. No Docker: the tests start a real PostgreSQL from `no
 ```bash
 make setup   # npm ci
 make lint    # TypeScript strict type check
-make test    # 45 tests: tokens, row-level security, HTTP API, migrations, config
+make test    # 46 tests: tokens, row-level security, HTTP API, migrations, config
 ```
 
 Run against your own PostgreSQL instead:
@@ -112,7 +112,7 @@ Latest local run against PostgreSQL 18.4 (full detail in [docs/results/m1.md](do
 
 | Check | Result |
 |---|---|
-| Test suite | 45 passed, 0 failed |
+| Test suite | 46 passed, 0 failed |
 | App role | `NOSUPERUSER`, `NOBYPASSRLS` |
 | TypeScript | `strict`, `noUncheckedIndexedAccess`, no errors |
 
@@ -124,7 +124,7 @@ The 10 quality rules (timeouts, retry-safe writes, races, mutation testing and m
 
 ```mermaid
 mindmap
-  root((45 tests pass))
+  root((46 tests pass))
     Row-level security 12
       each tenant sees only its rows
       no context means no rows
