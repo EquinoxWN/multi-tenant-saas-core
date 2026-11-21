@@ -45,3 +45,17 @@ test("two migrators started at once apply a new file exactly once", async () => 
     b.release();
   }
 });
+
+test("a failed rollback does not hide which migration failed", async () => {
+  const dir = resolve(".tmp", `migrations-fail-${process.pid}`);
+  await mkdir(dir, { recursive: true });
+  await writeFile(`${dir}/001_bad.sql`, "BROKEN");
+  const client = {
+    query: async (sql: string) => {
+      if (sql === "BROKEN") throw new Error("syntax error");
+      if (sql === "ROLLBACK") throw new Error("connection lost");
+      return { rows: [] };
+    },
+  } as unknown as Parameters<typeof migrate>[0];
+  await assert.rejects(migrate(client, dir), /migration 001_bad\.sql failed: syntax error/);
+});
